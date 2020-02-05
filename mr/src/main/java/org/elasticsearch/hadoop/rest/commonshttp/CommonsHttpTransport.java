@@ -38,16 +38,17 @@ import org.elasticsearch.hadoop.rest.stats.Stats;
 import org.elasticsearch.hadoop.rest.stats.StatsAware;
 import org.elasticsearch.hadoop.security.SecureSettings;
 import org.elasticsearch.hadoop.util.ByteSequence;
+import org.elasticsearch.hadoop.util.BytesArray;
 import org.elasticsearch.hadoop.util.ReflectionUtils;
 import org.elasticsearch.hadoop.util.StringUtils;
 import org.elasticsearch.hadoop.util.encoding.HttpEncodingTools;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.util.Locale;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Transport implemented on top of Commons Http. Provides transport retries.
@@ -222,8 +223,8 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         String schema = "https";
         int port = 443;
         SecureProtocolSocketFactory sslFactory = new SSLSocketFactory(settings, secureSettings);
-
         replaceProtocol(sslFactory, schema, port);
+
 
         return hostConfig;
     }
@@ -387,6 +388,22 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         return hostConfig;
     }
 
+    public static ByteSequence compressDataByteArray(ByteSequence ba) throws URISyntaxException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            OutputStream deflater = new GZIPOutputStream(buffer);
+            deflater.write(ba.toString().getBytes());
+            deflater.close();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        BytesArray baCompressed = new BytesArray(buffer.toByteArray());
+
+        //return buffer.toByteArray();
+        return baCompressed;
+
+    }
+
     static void replaceProtocol(ProtocolSocketFactory socketFactory, String schema, int defaultPort) {
         //
         // switch protocol
@@ -412,7 +429,7 @@ public class CommonsHttpTransport implements Transport, StatsAware {
     }
 
     @Override
-    public Response execute(Request request) throws IOException {
+    public Response execute(Request request) throws IOException, URISyntaxException {
         HttpMethod http = null;
 
         switch (request.method()) {
@@ -437,6 +454,7 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         }
 
         CharSequence uri = request.uri();
+
         if (StringUtils.hasText(uri)) {
             if (String.valueOf(uri).contains("?")) {
                 throw new EsHadoopInvalidRequest("URI has query portion on it: [" + uri + "]");
@@ -450,6 +468,7 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         if (path.contains("?")) {
             throw new EsHadoopInvalidRequest("Path has query portion on it: [" + path + "]");
         }
+
 
         path = HttpEncodingTools.encodePath(path);
 
@@ -468,12 +487,25 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         }
 
         ByteSequence ba = request.body();
+        ByteSequence compressedByteSequence = null ;
+
         if (ba != null && ba.length() > 0) {
             if (!(http instanceof EntityEnclosingMethod)) {
                 throw new IllegalStateException(String.format("Method %s cannot contain body - implementation bug", request.method().name()));
             }
             EntityEnclosingMethod entityMethod = (EntityEnclosingMethod) http;
-            entityMethod.setRequestEntity(new BytesArrayRequestEntity(ba));
+            // Compress Http Payload
+            if(settings.getCompressedDatatransfer()){
+                log.debug("***** Compress Data transfer : Enabled *****");
+                compressedByteSequence = compressDataByteArray(ba);
+                entityMethod.setRequestEntity(new BytesArrayRequestEntity(compressedByteSequence));
+                http.setRequestHeader("Content-Encoding", "gzip");
+                stats.compressedBytesSent += compressedByteSequence.length();
+            }
+            else {
+                log.debug("***** Compress Data transfer : Disabled *****");
+                entityMethod.setRequestEntity(new BytesArrayRequestEntity(ba));
+            }
             entityMethod.setContentChunked(false);
         }
 

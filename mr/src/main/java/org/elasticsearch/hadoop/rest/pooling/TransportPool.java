@@ -32,6 +32,7 @@ import org.elasticsearch.hadoop.security.SecureSettings;
 import org.elasticsearch.hadoop.util.unit.TimeValue;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -97,14 +98,19 @@ final class TransportPool {
      * @param transport to test
      * @return if the transport succeeded the validation or not
      */
-    private boolean validate(PooledTransport transport) {
+    private boolean validate(PooledTransport transport) throws IOException {
         try {
             Response response = transport.execute(validationRequest);
             return response.hasSucceeded();
-        } catch (IOException ioe) {
-            log.warn("Could not validate pooled connection on lease. Releasing pooled connection and trying again...", ioe);
+        } catch (IOException e) {
+            log.warn("Could not validate pooled connection on lease. Releasing pooled connection and trying again...");
             return false;
         }
+        catch(URISyntaxException uie){
+            log.warn("URI Exception..." + uie.toString());
+            return false;
+        }
+
     }
 
     /**
@@ -119,7 +125,7 @@ final class TransportPool {
      * Borrows a Transport from this pool. If there are no pooled Transports available, a new one is created.
      * @return A Transport backed by a pooled resource
      */
-    synchronized Transport borrowTransport() {
+    synchronized Transport borrowTransport() throws IOException {
         long now = System.currentTimeMillis();
 
         List<PooledTransport> garbageTransports = new ArrayList<PooledTransport>();
@@ -228,7 +234,7 @@ final class TransportPool {
         }
 
         @Override
-        public Response execute(Request request) throws IOException {
+        public Response execute(Request request) throws IOException, URISyntaxException {
             if (!open) {
                 throw new EsHadoopIllegalStateException("Calling execute on a closed Transport object");
             }
