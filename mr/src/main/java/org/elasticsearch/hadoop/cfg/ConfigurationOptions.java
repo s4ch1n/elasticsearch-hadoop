@@ -146,6 +146,9 @@ public interface ConfigurationOptions {
     String ES_INDEX_AUTO_CREATE = "es.index.auto.create";
     String ES_INDEX_AUTO_CREATE_DEFAULT = "yes";
 
+    String ES_COMPRESSED_DATA_TRANSFER_ENABLE = "es.compressed.data.transfer.enable";
+    String ES_COMPRESSED_DATA_TRANSFER_ENABLE_DEFAULT = "false";    
+
     String ES_INDEX_READ_MISSING_AS_EMPTY = "es.index.read.missing.as.empty";
     String ES_INDEX_READ_MISSING_AS_EMPTY_DEFAULT = "false";
 
@@ -158,7 +161,7 @@ public interface ConfigurationOptions {
 
     /** Mapping types */
     String ES_MAPPING_DEFAULT_EXTRACTOR_CLASS = "es.mapping.default.extractor.class";
-    
+
     String ES_MAPPING_METADATA_EXTRACTOR_CLASS = "es.mapping.metadata.extractor.class";
 
     String ES_MAPPING_ID = "es.mapping.id";

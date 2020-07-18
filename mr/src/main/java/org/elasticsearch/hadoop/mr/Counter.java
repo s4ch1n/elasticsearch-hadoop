@@ -40,6 +40,12 @@ public enum Counter {
             return stats.docsSent;
         }
     },
+    COMPRESSED_BYTE_SENT {
+        @Override
+        public long get(Stats stats) {
+            return stats.compressedBytesSent;
+        }
+    },
     BYTES_ACCEPTED {
         @Override
         public long get(Stats stats) {

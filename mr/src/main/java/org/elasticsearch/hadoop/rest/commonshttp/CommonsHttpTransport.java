@@ -50,6 +50,7 @@ import org.elasticsearch.hadoop.security.SecureSettings;
 import org.elasticsearch.hadoop.security.User;
 import org.elasticsearch.hadoop.security.UserProvider;
 import org.elasticsearch.hadoop.util.ByteSequence;
+import org.elasticsearch.hadoop.util.BytesArray;
 import org.elasticsearch.hadoop.util.ReflectionUtils;
 import org.elasticsearch.hadoop.util.StringUtils;
 import org.elasticsearch.hadoop.util.encoding.HttpEncodingTools;
@@ -66,6 +67,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import javax.security.auth.kerberos.KerberosPrincipal;
+import java.io.*;
+import java.net.URISyntaxException;
+import java.util.zip.GZIPOutputStream;
+
 
 /**
  * Transport implemented on top of Commons Http. Provides transport retries.
@@ -374,6 +379,22 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         }
     }
 
+    public static ByteSequence compressDataByteArray(ByteSequence ba) throws URISyntaxException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            OutputStream deflater = new GZIPOutputStream(buffer);
+            deflater.write(ba.toString().getBytes());
+            deflater.close();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        BytesArray baCompressed = new BytesArray(buffer.toByteArray());
+
+        //return buffer.toByteArray();
+        return baCompressed;
+
+    }
+
     private Object[] setupHttpOrHttpsProxy(Settings settings, SecureSettings secureSettings, HostConfiguration hostConfig) {
         // return HostConfiguration + HttpState
         Object[] results = new Object[2];
@@ -423,7 +444,7 @@ public class CommonsHttpTransport implements Transport, StatsAware {
                     // client is not yet initialized so simply save the object for later
                     results[1] = state;
                 }
-    
+
                 if (log.isDebugEnabled()) {
                     if (StringUtils.hasText(settings.getNetworkProxyHttpsUser())) {
                         log.debug(String.format("Using authenticated HTTPS proxy [%s:%s]", proxyHost, proxyPort));
@@ -443,7 +464,7 @@ public class CommonsHttpTransport implements Transport, StatsAware {
                     // client is not yet initialized so simply save the object for later
                     results[1] = state;
                 }
-    
+
                 if (log.isDebugEnabled()) {
                     if (StringUtils.hasText(settings.getNetworkProxyHttpUser())) {
                         log.debug(String.format("Using authenticated HTTP proxy [%s:%s]", proxyHost, proxyPort));
@@ -544,7 +565,7 @@ public class CommonsHttpTransport implements Transport, StatsAware {
     }
 
     @Override
-    public Response execute(Request request) throws IOException {
+    public Response execute(Request request) throws IOException, URISyntaxException {
         HttpMethod http = null;
 
         switch (request.method()) {
@@ -600,12 +621,25 @@ public class CommonsHttpTransport implements Transport, StatsAware {
         }
 
         ByteSequence ba = request.body();
+        ByteSequence compressedByteSequence = null ;
         if (ba != null && ba.length() > 0) {
             if (!(http instanceof EntityEnclosingMethod)) {
                 throw new IllegalStateException(String.format("Method %s cannot contain body - implementation bug", request.method().name()));
             }
             EntityEnclosingMethod entityMethod = (EntityEnclosingMethod) http;
-            entityMethod.setRequestEntity(new BytesArrayRequestEntity(ba));
+            //entityMethod.setRequestEntity(new BytesArrayRequestEntity(ba));
+            // Compress Http Payload
+            if(settings.getCompressedDatatransfer()){
+                log.debug("***** Compress Data transfer : Enabled *****");
+                compressedByteSequence = compressDataByteArray(ba);
+                entityMethod.setRequestEntity(new BytesArrayRequestEntity(compressedByteSequence));
+                http.setRequestHeader("Content-Encoding", "gzip");
+                stats.compressedBytesSent += compressedByteSequence.length();
+            }
+            else {
+                log.debug("***** Compress Data transfer : Disabled *****");
+                entityMethod.setRequestEntity(new BytesArrayRequestEntity(ba));
+            }
             entityMethod.setContentChunked(false);
         }
 

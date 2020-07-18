@@ -20,12 +20,13 @@ package org.elasticsearch.hadoop.rest;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.URISyntaxException;
 
 import org.elasticsearch.hadoop.rest.stats.StatsAware;
 
 public interface Transport extends Closeable, StatsAware {
 
-    Response execute(Request request) throws IOException;
+    Response execute(Request request) throws IOException, URISyntaxException;
 
     void close();
 }

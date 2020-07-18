@@ -233,6 +233,10 @@ public abstract class Settings {
         return Booleans.parseBoolean(getProperty(ES_INDEX_AUTO_CREATE, ES_INDEX_AUTO_CREATE_DEFAULT));
     }
 
+    public boolean getCompressedDatatransfer() {
+        return Booleans.parseBoolean(getProperty(ES_COMPRESSED_DATA_TRANSFER_ENABLE, ES_COMPRESSED_DATA_TRANSFER_ENABLE_DEFAULT));
+    }
+
     public boolean getIndexReadMissingAsEmpty() {
         return Booleans.parseBoolean(getProperty(ES_INDEX_READ_MISSING_AS_EMPTY, ES_INDEX_READ_MISSING_AS_EMPTY_DEFAULT));
     }
@@ -293,7 +297,7 @@ public abstract class Settings {
     public String getMappingDefaultClassExtractor() {
         return getProperty(ES_MAPPING_DEFAULT_EXTRACTOR_CLASS);
     }
-    
+
     public String getMappingMetadataExtractorClassName() {
         return getProperty(ES_MAPPING_METADATA_EXTRACTOR_CLASS);
     }
